@@ -1,6 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import img1 from '../../assets/images/DiscoverPage/image1.jpg'
+import img2 from '../../assets/images/DiscoverPage/image2.jpeg'
+import img3 from '../../assets/images/DiscoverPage/image3.jpg'
+import img4 from '../../assets/images/DiscoverPage/image4.jpg'
+import img5 from '../../assets/images/DiscoverPage/image5.jpg'
 
 const Discover = ({ navigation, route }) => {
   const handleDiscover = () => {
@@ -29,27 +34,27 @@ const Discover = ({ navigation, route }) => {
       <View style={styles.imageRow}>
         <View style={styles.column}>
           <Image
-            source={{ uri: 'https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRYbbMK0NYr-_rolxpQJDXR6Oreiq2akllSQ1tzXVdpBA2NPkJiOxMQDbWJbJH0sGgFFeyYjZ5rMH6XV3FBnTdZK1LpgejYNjmmTVP55A' }}
+            source={img1}
             style={styles.smallImage}
           />
           <Image
-            source={{ uri: 'https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRYbbMK0NYr-_rolxpQJDXR6Oreiq2akllSQ1tzXVdpBA2NPkJiOxMQDbWJbJH0sGgFFeyYjZ5rMH6XV3FBnTdZK1LpgejYNjmmTVP55A' }}
+            source={img2}
             style={styles.smallImage}
           />
         </View>
 
         <Image
-          source={{ uri: 'https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRYbbMK0NYr-_rolxpQJDXR6Oreiq2akllSQ1tzXVdpBA2NPkJiOxMQDbWJbJH0sGgFFeyYjZ5rMH6XV3FBnTdZK1LpgejYNjmmTVP55A' }}
+          source={img3}
           style={styles.largeImage}
         />
 
         <View style={styles.column}>
           <Image
-            source={{ uri: 'https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRYbbMK0NYr-_rolxpQJDXR6Oreiq2akllSQ1tzXVdpBA2NPkJiOxMQDbWJbJH0sGgFFeyYjZ5rMH6XV3FBnTdZK1LpgejYNjmmTVP55A' }}
+            source={img4}
             style={styles.smallImage}
           />
           <Image
-            source={{ uri: 'https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRYbbMK0NYr-_rolxpQJDXR6Oreiq2akllSQ1tzXVdpBA2NPkJiOxMQDbWJbJH0sGgFFeyYjZ5rMH6XV3FBnTdZK1LpgejYNjmmTVP55A' }}
+            source={img5}
             style={styles.smallImage}
           />
         </View>
