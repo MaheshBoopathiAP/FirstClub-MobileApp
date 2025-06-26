@@ -36,13 +36,11 @@ export default function ChooseLocationScreen({ navigation }) {
   const [isGettingCurrentLocation, setIsGettingCurrentLocation] = useState(false);
   const { setLocation, completeStep } = useStore();
 
-  // Check if location permission is granted
   const checkLocationPermission = async () => {
     const { status } = await Location.getForegroundPermissionsAsync();
     return status === 'granted';
   };
 
-  // Handle app state changes to re-check permissions
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'active' && locationPermission === false) {
@@ -62,26 +60,22 @@ export default function ChooseLocationScreen({ navigation }) {
     return () => subscription?.remove();
   }, [locationPermission]);
 
-  // Main permission and location initialization
   useEffect(() => {
     const requestLocationPermission = async () => {
       try {
         setIsLoading(true);
         
-        // First check current permission status
         let { status: existingStatus } = await Location.getForegroundPermissionsAsync();
         console.log('Existing permission status:', existingStatus);
         
         let finalStatus = existingStatus;
         
-        // Only request if not already granted
         if (existingStatus !== 'granted') {
           const { status } = await Location.requestForegroundPermissionsAsync();
           finalStatus = status;
           console.log('Permission request result:', status);
         }
         
-        // Handle different permission states
         if (finalStatus === 'granted') {
           setLocationPermission(true);
           await getCurrentLocationWithFallback();
@@ -158,13 +152,11 @@ export default function ChooseLocationScreen({ navigation }) {
 
       let location;
       try {
-        // First try to get current position
         location = await Location.getCurrentPositionAsync(locationOptions);
         console.log('Successfully fetched current location:', location.coords);
       } catch (locationError) {
         console.error('Failed to get current location, using fallback:', locationError);
         
-        // Check if it's a simulator or location services issue
         const isSimulator = Platform.OS === 'ios' && !Platform.isPad && !Platform.isTV;
         
         if (isSimulator) {
@@ -176,11 +168,10 @@ export default function ChooseLocationScreen({ navigation }) {
             }
           };
         } else {
-          // Try last known position as fallback
           try {
             location = await Location.getLastKnownPositionAsync({
-              maxAge: 300000, // 5 minutes
-              requiredAccuracy: 1000, // 1km accuracy
+              maxAge: 300000,
+              requiredAccuracy: 1000,
             });
             
             if (!location) {
@@ -189,7 +180,6 @@ export default function ChooseLocationScreen({ navigation }) {
             console.log('Using last known position:', location.coords);
           } catch (fallbackError) {
             console.error('Last known position also failed:', fallbackError);
-            // Final fallback to default region
             location = {
               coords: {
                 latitude: DEFAULT_REGION.latitude,
@@ -212,7 +202,6 @@ export default function ChooseLocationScreen({ navigation }) {
     const processLocationData = async (location) => {
       const { latitude, longitude } = location.coords;
       
-      // Check if location is reasonable (within India bounds as example)
       const isSimulator = Platform.OS === 'ios' && !Platform.isPad && !Platform.isTV;
       const isOutsideIndia = latitude < 6 || latitude > 35 || longitude < 68 || longitude > 97;
 
@@ -233,7 +222,6 @@ export default function ChooseLocationScreen({ navigation }) {
         return;
       }
 
-      // Try reverse geocoding
       try {
         const addressData = await Location.reverseGeocodeAsync({ latitude, longitude });
         
@@ -256,7 +244,6 @@ export default function ChooseLocationScreen({ navigation }) {
         }
       } catch (reverseGeocodeError) {
         console.error('Reverse geocoding failed:', reverseGeocodeError);
-        // Fallback without address details
         setSelectedLocation({
           latitude,
           longitude,
@@ -267,7 +254,6 @@ export default function ChooseLocationScreen({ navigation }) {
         });
       }
       
-      // Animate to the location
       setTimeout(() => {
         mapRef.current?.animateToRegion({
           latitude,
@@ -281,7 +267,6 @@ export default function ChooseLocationScreen({ navigation }) {
     requestLocationPermission();
   }, []);
 
-  // Process location from coordinates
   const processLocationFromCoords = async (coords) => {
     const { latitude, longitude } = coords;
     
@@ -310,7 +295,6 @@ export default function ChooseLocationScreen({ navigation }) {
       }, 500);
     } catch (error) {
       console.error('Process location coords error:', error);
-      // Still set location even if geocoding fails
       setSelectedLocation({
         latitude,
         longitude,
@@ -322,7 +306,6 @@ export default function ChooseLocationScreen({ navigation }) {
     }
   };
 
-  // Handle map press to select location
   const handleMapPress = async (event) => {
     try {
       const { coordinate } = event.nativeEvent;
@@ -367,7 +350,6 @@ export default function ChooseLocationScreen({ navigation }) {
     }
   };
 
-  // Handle search functionality
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       Alert.alert('Search Error', 'Please enter a location to search');
@@ -403,7 +385,7 @@ export default function ChooseLocationScreen({ navigation }) {
             longitudeDelta: 0.02,
           }, 500);
           
-          setSearchQuery(''); // Clear search after successful search
+          setSearchQuery(''); 
         } catch (reverseGeocodeError) {
           console.error('Reverse geocode error during search:', reverseGeocodeError);
           setSelectedLocation({
@@ -426,7 +408,6 @@ export default function ChooseLocationScreen({ navigation }) {
     }
   };
 
-  // Handle marker drag end
   const handleDragEnd = async (event) => {
     try {
       const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -446,7 +427,6 @@ export default function ChooseLocationScreen({ navigation }) {
       });
     } catch (error) {
       console.error('Drag end error:', error);
-      // Still update location even if reverse geocoding fails
       const { latitude, longitude } = event.nativeEvent.coordinate;
       setSelectedLocation({
         latitude,
@@ -459,10 +439,8 @@ export default function ChooseLocationScreen({ navigation }) {
     }
   };
 
-  // Handle current location button press
   const handleCurrentLocation = async () => {
     try {
-      // Check permission status first
       const { status } = await Location.getForegroundPermissionsAsync();
       
       if (status !== 'granted') {
@@ -482,7 +460,7 @@ export default function ChooseLocationScreen({ navigation }) {
       const locationOptions = {
         accuracy: Location.Accuracy.High,
         timeout: 10000,
-        maximumAge: 5000, // Accept location up to 5 seconds old
+        maximumAge: 5000,
       };
 
       try {
@@ -491,7 +469,6 @@ export default function ChooseLocationScreen({ navigation }) {
       } catch (locationError) {
         console.error('Current location fetch failed:', locationError);
         
-        // Try last known position
         try {
           const lastLocation = await Location.getLastKnownPositionAsync({
             maxAge: 300000, // 5 minutes
@@ -524,7 +501,6 @@ export default function ChooseLocationScreen({ navigation }) {
     }
   };
 
-  // Handle next button press
   const handleNext = () => {
     if (selectedLocation?.isServiceable) {
       setLocation({ 
@@ -558,7 +534,6 @@ export default function ChooseLocationScreen({ navigation }) {
     );
   }
 
-  // Permission denied state
   if (locationPermission === false) {
     return (
       <View style={styles.root}>
@@ -604,7 +579,6 @@ export default function ChooseLocationScreen({ navigation }) {
     );
   }
 
-  // No location selected state
   if (!selectedLocation) {
     return (
       <View style={styles.root}>
@@ -622,7 +596,6 @@ export default function ChooseLocationScreen({ navigation }) {
     );
   }
 
-  // Main render with map
   return (
     <View style={styles.root}>
       <View style={styles.header}>
@@ -702,7 +675,6 @@ export default function ChooseLocationScreen({ navigation }) {
         </Marker>
       </MapView>
 
-      {/* Current location button */}
       <TouchableOpacity 
         style={styles.currentLocationBtn}
         onPress={handleCurrentLocation}
@@ -715,7 +687,6 @@ export default function ChooseLocationScreen({ navigation }) {
         )}
       </TouchableOpacity>
 
-      {/* Bottom card with selected location info */}
       <View style={styles.bottomCard}>
         <Text style={styles.bottomHeader}>SELECTED LOCATION</Text>
 
