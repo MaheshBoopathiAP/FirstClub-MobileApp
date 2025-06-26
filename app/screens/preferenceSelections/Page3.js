@@ -1,24 +1,42 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import useStore from '../../store/useStore'; 
 
-const OPTIONS = ['Morning', 'Afternoon', 'Evening', 'Night'];
+const OPTIONS = [
+  { id: 10, name: 'Morning' },
+  { id: 11, name: 'Afternoon' },
+  { id: 12, name: 'Evening' },
+  { id: 13, name: 'Night' },
+];
 
 const Page3 = ({ navigation }) => {
-  const [selectedOption, setSelectedOption] = useState(null);
+  const { selectSample, completeStep } = useStore();
+  const [selectedOptions, setSelectedOptions] = useState([]);
 
   const handleSelect = (option) => {
-    setSelectedOption((prev) => (prev === option ? null : option));
+    setSelectedOptions((prev) =>
+      prev.includes(option.id)
+        ? prev.filter((item) => item !== option.id)
+        : [...prev, option.id]
+    );
   };
 
+  const isSelected = (optionId) => selectedOptions.includes(optionId);
+
   const handleFinish = () => {
-    if (selectedOption) {
+    if (selectedOptions.length > 0) {
+      selectedOptions.forEach((id) => {
+        const option = OPTIONS.find((opt) => opt.id === id);
+        selectSample({ id, name: option.name });
+      });
+      completeStep(3); 
       navigation.navigate('Samples');
     }
   };
 
   const handleSkip = () => {
-        navigation.navigate('Samples');
+    navigation.navigate('Samples');
   };
 
   return (
@@ -32,10 +50,10 @@ const Page3 = ({ navigation }) => {
         <Text style={styles.title}>When do you usually shop?</Text>
 
         <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/4472/4472581.png' }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+        source={{ uri: 'https://res.cloudinary.com/deq5wxwiw/image/upload/v1750870195/fruitscupb_lxhrog.avif' }}
+        style={styles.image}
+        resizeMode="contain"
+      />
 
         <Text style={styles.description}>
           Knowing your preferred shopping time helps us deliver more relevant offers and reminders.
@@ -50,20 +68,20 @@ const Page3 = ({ navigation }) => {
         <View style={styles.optionsContainer}>
           {OPTIONS.map((option) => (
             <TouchableOpacity
-              key={option}
+              key={option.id}
               style={[
                 styles.option,
-                selectedOption === option && styles.optionSelected,
+                isSelected(option.id) && styles.optionSelected,
               ]}
               onPress={() => handleSelect(option)}
             >
               <Text
                 style={[
                   styles.optionText,
-                  selectedOption === option && styles.optionTextSelected,
+                  isSelected(option.id) && styles.optionTextSelected,
                 ]}
               >
-                {option}
+                {option.name}
               </Text>
             </TouchableOpacity>
           ))}
@@ -76,10 +94,10 @@ const Page3 = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.nextButton,
-              !selectedOption && styles.nextButtonDisabled,
+              selectedOptions.length === 0 && styles.nextButtonDisabled,
             ]}
             onPress={handleFinish}
-            disabled={!selectedOption}
+            disabled={selectedOptions.length === 0}
           >
             <Text style={styles.nextButtonText}>Finish</Text>
           </TouchableOpacity>
@@ -113,25 +131,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '600',
+    marginTop: 20,
+    fontWeight: '500',
     color: '#222',
     textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: Platform.OS === 'android' ? 32 : 32,
+    lineHeight: Platform.OS === 'android' ? 32 : 28,
+    marginBottom: 10,
   },
   image: {
     width: 200,
     height: 200,
-    borderRadius: 70,
+    marginTop: 15,
+    borderRadius: 100,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 30,
   },
   description: {
     fontSize: 15,
     color: '#555',
     textAlign: 'center',
     lineHeight: Platform.OS === 'android' ? 24 : 22,
-    marginBottom: 50,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   progressBarBackground: {

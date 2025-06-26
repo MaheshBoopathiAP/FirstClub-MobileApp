@@ -1,51 +1,57 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import useStore from '../../store/useStore';
 
 const OPTIONS = [
-  'Just me',
-  'Me & my partner',
-  'Family with kids',
-  'Elders at home',
-  'Pets',
+  { id: 1, name: 'Just me' },
+  { id: 2, name: 'Me & my partner' },
+  { id: 3, name: 'Family with kids' },
+  { id: 4, name: 'Elders at home' },
+  { id: 5, name: 'Pets' },
 ];
 
 const Page1 = ({ navigation }) => {
+  const { selectSample, completeStep } = useStore();
   const [selectedOptions, setSelectedOptions] = useState([]);
 
   const toggleOption = (option) => {
     setSelectedOptions((prev) =>
-      prev.includes(option)
-        ? prev.filter((item) => item !== option)
-        : [...prev, option]
+      prev.includes(option.id)
+        ? prev.filter((item) => item !== option.id)
+        : [...prev, option.id]
     );
   };
 
-  const isSelected = (option) => selectedOptions.includes(option);
+  const isSelected = (optionId) => selectedOptions.includes(optionId);
 
   const handleNext = () => {
     if (selectedOptions.length > 0) {
+      selectedOptions.forEach((id) => {
+        const option = OPTIONS.find((opt) => opt.id === id);
+        selectSample({ id, name: option.name }); 
+      });
+      completeStep(3); 
       navigation.navigate('PreferencePage2');
     }
   };
 
   const handleSkip = () => {
-    navigation.navigate('Home');
+    navigation.navigate('PreferencePage2');
   };
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <StatusBar style="dark" />
       <View style={styles.container}>
-       
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
 
         <Text style={styles.title}>Fresh means today,{"\n"}not last week.</Text>
 
-        <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/1046/1046750.png' }}
+          <Image
+          source={{ uri: 'https://res.cloudinary.com/deq5wxwiw/image/upload/v1750869741/image1_l62con.jpg' }}
           style={styles.image}
           resizeMode="contain"
         />
@@ -63,12 +69,12 @@ const Page1 = ({ navigation }) => {
         <View style={styles.optionsContainer}>
           {OPTIONS.map((option) => (
             <TouchableOpacity
-              key={option}
-              style={[styles.option, isSelected(option) && styles.optionSelected]}
+              key={option.id}
+              style={[styles.option, isSelected(option.id) && styles.optionSelected]}
               onPress={() => toggleOption(option)}
             >
-              <Text style={[styles.optionText, isSelected(option) && styles.optionTextSelected]}>
-                {option}
+              <Text style={[styles.optionText, isSelected(option.id) && styles.optionTextSelected]}>
+                {option.name}
               </Text>
             </TouchableOpacity>
           ))}
@@ -118,25 +124,26 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '600',
+    marginTop: 20,
+    fontWeight: '500',
     color: '#222',
     textAlign: 'center',
     lineHeight: Platform.OS === 'android' ? 32 : 28,
-    marginBottom: 30,
+    marginBottom: 10,
   },
   image: {
     width: 200,
     height: 200,
-    borderRadius: 70,
+    borderRadius: 100,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   description: {
     fontSize: 15,
     color: '#555',
     textAlign: 'center',
     lineHeight: Platform.OS === 'android' ? 24 : 22,
-    marginBottom: 50,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   progressBarBackground: {

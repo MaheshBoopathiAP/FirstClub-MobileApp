@@ -1,24 +1,42 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import useStore from '../../store/useStore'; 
 
-const OPTIONS = ['Vegetarian', 'Non-vegetarian', 'Vegan', 'Eggetarian'];
+const OPTIONS = [
+  { id: 6, name: 'Vegetarian' },
+  { id: 7, name: 'Non-vegetarian' },
+  { id: 8, name: 'Vegan' },
+  { id: 9, name: 'Eggetarian' },
+];
 
 const Page2 = ({ navigation }) => {
-  const [selectedOption, setSelectedOption] = useState(null);
+  const { selectSample, completeStep } = useStore();
+  const [selectedOptions, setSelectedOptions] = useState([]);
 
   const handleSelect = (option) => {
-    setSelectedOption((prev) => (prev === option ? null : option));
+    setSelectedOptions((prev) =>
+      prev.includes(option.id)
+        ? prev.filter((item) => item !== option.id)
+        : [...prev, option.id]
+    );
   };
 
+  const isSelected = (optionId) => selectedOptions.includes(optionId);
+
   const handleNext = () => {
-    if (selectedOption) {
+    if (selectedOptions.length > 0) {
+      selectedOptions.forEach((id) => {
+        const option = OPTIONS.find((opt) => opt.id === id);
+        selectSample({ id, name: option.name });
+      });
+      completeStep(3); 
       navigation.navigate('PreferencePage3');
     }
   };
 
   const handleSkip = () => {
-    navigation.navigate('Home');
+    navigation.navigate('PreferencePage3');
   };
 
   return (
@@ -32,10 +50,10 @@ const Page2 = ({ navigation }) => {
         <Text style={styles.title}>What suits your plate best?</Text>
 
         <Image
-          source={{ uri: 'https://cdn-icons-png.flaticon.com/512/3082/3082034.png' }}
-          style={styles.image}
-          resizeMode="contain"
-        />
+        source={{ uri: 'https://res.cloudinary.com/deq5wxwiw/image/upload/v1750869741/image2_hfaxom.jpg' }}
+        style={styles.image}
+        resizeMode="contain"
+      />
 
         <Text style={styles.description}>
           Choose your dietary preferences so we can suggest meals and groceries tailored to your needs.
@@ -50,20 +68,20 @@ const Page2 = ({ navigation }) => {
         <View style={styles.optionsContainer}>
           {OPTIONS.map((option) => (
             <TouchableOpacity
-              key={option}
+              key={option.id}
               style={[
                 styles.option,
-                selectedOption === option && styles.optionSelected,
+                isSelected(option.id) && styles.optionSelected,
               ]}
               onPress={() => handleSelect(option)}
             >
               <Text
                 style={[
                   styles.optionText,
-                  selectedOption === option && styles.optionTextSelected,
+                  isSelected(option.id) && styles.optionTextSelected,
                 ]}
               >
-                {option}
+                {option.name}
               </Text>
             </TouchableOpacity>
           ))}
@@ -76,10 +94,10 @@ const Page2 = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.nextButton,
-              !selectedOption && styles.nextButtonDisabled,
+              selectedOptions.length === 0 && styles.nextButtonDisabled,
             ]}
             onPress={handleNext}
-            disabled={!selectedOption}
+            disabled={selectedOptions.length === 0}
           >
             <Text style={styles.nextButtonText}>Next ➔</Text>
           </TouchableOpacity>
@@ -113,16 +131,17 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#222',
     textAlign: 'center',
-    marginBottom: 30,
+    marginBottom: 10,
+    marginTop: 20,
     lineHeight: Platform.OS === 'android' ? 32 : 32,
   },
   image: {
     width: 200,
     height: 200,
-    borderRadius: 70,
+    borderRadius: 100,
     alignSelf: 'center',
     marginBottom: 20,
   },
@@ -131,7 +150,7 @@ const styles = StyleSheet.create({
     color: '#555',
     textAlign: 'center',
     lineHeight: Platform.OS === 'android' ? 24 : 22,
-    marginBottom: 50,
+    marginBottom: 20,
     paddingHorizontal: 8,
   },
   progressBarBackground: {

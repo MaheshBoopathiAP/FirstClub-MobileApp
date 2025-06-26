@@ -19,7 +19,7 @@ const SplashScreen = ({ navigation }) => {
     return (
       <View style={styles.splashContainer}>
         <StatusBar style="light" />
-        <Image source={logo} style={styles.logo} />
+        <Image source={{ uri: 'https://res.cloudinary.com/deq5wxwiw/image/upload/v1750875333/firstcl_t2bsco.png' }} style={styles.logo} />
         <ActivityIndicator size="large" color="#ffffff" style={styles.loader} />
       </View>
     );

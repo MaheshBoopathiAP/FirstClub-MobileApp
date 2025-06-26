@@ -9,7 +9,7 @@ import MobileOTP from '../screens/MobileOTP';
 import Page1 from '../screens/preferenceSelections/Page1';
 import Page2 from '../screens/preferenceSelections/Page2';
 import Page3 from '../screens/preferenceSelections/Page3';
-import SamplesScreen from '../screens/samples';
+import SamplesScreen from '../screens/SamplesScreen';
 
 const Stack = createStackNavigator();
 
