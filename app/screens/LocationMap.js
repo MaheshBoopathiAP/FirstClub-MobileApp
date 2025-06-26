@@ -15,7 +15,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import useStore from '../store/useStore'; 
+import useStore from '../store/useStore';
 
 const { width } = Dimensions.get('window');
 
@@ -37,21 +37,30 @@ export default function ChooseLocationScreen({ navigation }) {
   const { setLocation, completeStep } = useStore();
 
   const checkLocationPermission = async () => {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    return status === 'granted';
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      console.log('Location permission status:', status);
+      return status === 'granted';
+    } catch (error) {
+      console.error('Error checking location permission:', error);
+      return false;
+    }
   };
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'active' && locationPermission === false) {
         try {
-          const { status } = await Location.getForegroundPermissionsAsync();
-          if (status === 'granted') {
+          const hasPermission = await checkLocationPermission();
+          if (hasPermission) {
             setLocationPermission(true);
             await getCurrentLocationWithFallback();
+          } else {
+            showPermissionAlert('denied');
           }
         } catch (error) {
-          console.error('App state change permission check error:', error);
+          console.error('App state change error:', error);
+          showGenericError();
         }
       }
     };
@@ -62,35 +71,54 @@ export default function ChooseLocationScreen({ navigation }) {
 
   useEffect(() => {
     const requestLocationPermission = async () => {
+      console.log('Starting location permission request');
       try {
         setIsLoading(true);
-        
-        let { status: existingStatus } = await Location.getForegroundPermissionsAsync();
-        console.log('Existing permission status:', existingStatus);
-        
-        let finalStatus = existingStatus;
-        
-        if (existingStatus !== 'granted') {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          finalStatus = status;
+
+        // Check if location services are enabled
+        const isLocationEnabled = await Location.hasServicesEnabledAsync();
+        if (!isLocationEnabled) {
+          console.log('Location services disabled');
+          setLocationPermission(false);
+          Alert.alert(
+            'Location Services Disabled',
+            'Please enable location services in your device settings or skip to proceed.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+              {
+                text: 'Skip',
+                onPress: handleSkip,
+              },
+            ]
+          );
+          setSelectedLocation({
+            latitude: DEFAULT_REGION.latitude,
+            longitude: DEFAULT_REGION.longitude,
+            address: 'Default Location (Bangalore)',
+            city: 'Bangalore',
+            subAddress: 'BTM Layout, Bangalore',
+            isServiceable: true,
+          });
+          mapRef.current?.animateToRegion(DEFAULT_REGION, 500);
+          return;
+        }
+
+        let { status } = await Location.getForegroundPermissionsAsync();
+        console.log('Existing permission status:', status);
+
+        if (status !== 'granted') {
+          const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
+          status = newStatus;
           console.log('Permission request result:', status);
         }
-        
-        if (finalStatus === 'granted') {
+
+        if (status === 'granted') {
           setLocationPermission(true);
           await getCurrentLocationWithFallback();
-        } else if (finalStatus === 'denied') {
-          console.log('Permission explicitly denied');
-          setLocationPermission(false);
-          showPermissionAlert('denied');
-        } else if (finalStatus === 'undetermined') {
-          console.log('Permission undetermined');
-          setLocationPermission(false);
-          showPermissionAlert('undetermined');
         } else {
-          console.log('Permission status:', finalStatus);
           setLocationPermission(false);
-          showPermissionAlert('other');
+          showPermissionAlert(status);
         }
       } catch (error) {
         console.error('Permission handling error:', error);
@@ -98,52 +126,80 @@ export default function ChooseLocationScreen({ navigation }) {
         showGenericError();
       } finally {
         setIsLoading(false);
+        console.log('Location permission request completed');
       }
     };
 
-    const showPermissionAlert = (type) => {
+    const showPermissionAlert = (status) => {
       let title, message, buttons;
-      
-      switch (type) {
+      switch (status) {
         case 'denied':
           title = 'Location Access Denied';
-          message = 'Location access has been denied. Please enable it in your device settings to use this feature.';
+          message = 'Location access has been denied. Please enable it in settings or skip to proceed.';
           buttons = [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
           ];
           break;
         case 'undetermined':
           title = 'Location Permission Required';
-          message = 'This app needs location access to show nearby places. Please grant permission when prompted.';
+          message = 'This app needs location access to show nearby places. Please grant permission or skip.';
           buttons = [
-            { text: 'OK', onPress: () => requestLocationPermission() }
+            { text: 'OK', onPress: () => requestLocationPermission() },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
           ];
           break;
         default:
           title = 'Location Access Required';
-          message = 'Please enable location access to use this feature.';
+          message = 'Please enable location access or skip to proceed.';
           buttons = [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
           ];
       }
-      
       Alert.alert(title, message, buttons);
     };
 
     const showGenericError = () => {
       Alert.alert(
         'Location Error',
-        'Unable to access location services. Please ensure location is enabled in your device settings.',
+        'Unable to access location services. Using default location (Bangalore) or skip to proceed.',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          {
+            text: 'OK',
+            onPress: () => {
+              setSelectedLocation({
+                latitude: DEFAULT_REGION.latitude,
+                longitude: DEFAULT_REGION.longitude,
+                address: 'Default Location (Bangalore)',
+                city: 'Bangalore',
+                subAddress: 'BTM Layout, Bangalore',
+                isServiceable: true,
+              });
+              mapRef.current?.animateToRegion(DEFAULT_REGION, 500);
+            },
+          },
+          {
+            text: 'Skip',
+            onPress: handleSkip,
+          },
         ]
       );
     };
 
     const getCurrentLocationWithFallback = async () => {
+      console.log('Attempting to get current location');
       const locationOptions = {
         accuracy: Location.Accuracy.Balanced,
         timeout: 15000,
@@ -155,82 +211,63 @@ export default function ChooseLocationScreen({ navigation }) {
         location = await Location.getCurrentPositionAsync(locationOptions);
         console.log('Successfully fetched current location:', location.coords);
       } catch (locationError) {
-        console.error('Failed to get current location, using fallback:', locationError);
-        
-        const isSimulator = Platform.OS === 'ios' && !Platform.isPad && !Platform.isTV;
-        
-        if (isSimulator) {
-          console.log('iOS Simulator detected, using default location');
+        console.error('Failed to get current location:', locationError);
+        try {
+          location = await Location.getLastKnownPositionAsync({
+            maxAge: 300000,
+            requiredAccuracy: 1000,
+          });
+          if (!location) {
+            throw new Error('No last known position available');
+          }
+          console.log('Using last known position:', location.coords);
+          Alert.alert(
+            'Location Notice',
+            'Using your last known location as current location could not be determined. You can skip to proceed.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Skip',
+                onPress: handleSkip,
+              },
+            ]
+          );
+        } catch (fallbackError) {
+          console.error('Fallback location failed:', fallbackError);
           location = {
             coords: {
               latitude: DEFAULT_REGION.latitude,
               longitude: DEFAULT_REGION.longitude,
-            }
+            },
           };
-        } else {
-          try {
-            location = await Location.getLastKnownPositionAsync({
-              maxAge: 300000,
-              requiredAccuracy: 1000,
-            });
-            
-            if (!location) {
-              throw new Error('No last known position available');
-            }
-            console.log('Using last known position:', location.coords);
-          } catch (fallbackError) {
-            console.error('Last known position also failed:', fallbackError);
-            location = {
-              coords: {
-                latitude: DEFAULT_REGION.latitude,
-                longitude: DEFAULT_REGION.longitude,
-              }
-            };
-            
-            Alert.alert(
-              'Location Notice',
-              'Unable to get your exact location. Using default location (Bangalore). You can manually select your location on the map.',
-              [{ text: 'OK' }]
-            );
-          }
+          Alert.alert(
+            'Location Unavailable',
+            'Unable to get your exact location. Using default location (Bangalore). You can skip to proceed.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Skip',
+                onPress: handleSkip,
+              },
+            ]
+          );
         }
       }
-
       await processLocationData(location);
     };
 
     const processLocationData = async (location) => {
+      console.log('Processing location data:', location.coords);
       const { latitude, longitude } = location.coords;
-      
-      const isSimulator = Platform.OS === 'ios' && !Platform.isPad && !Platform.isTV;
-      const isOutsideIndia = latitude < 6 || latitude > 35 || longitude < 68 || longitude > 97;
-
-      if (isSimulator && isOutsideIndia) {
-        console.log('iOS Simulator with non-Indian location detected, using fallback');
-        setSelectedLocation({
-          latitude: DEFAULT_REGION.latitude,
-          longitude: DEFAULT_REGION.longitude,
-          address: 'Default Location (Bangalore)',
-          city: 'Bangalore',
-          subAddress: `Lat: ${DEFAULT_REGION.latitude.toFixed(4)}, Lon: ${DEFAULT_REGION.longitude.toFixed(4)}`,
-          isServiceable: true,
-        });
-        
-        setTimeout(() => {
-          mapRef.current?.animateToRegion(DEFAULT_REGION, 500);
-        }, 1000);
-        return;
-      }
 
       try {
         const addressData = await Location.reverseGeocodeAsync({ latitude, longitude });
-        
         if (addressData && addressData.length > 0) {
           const addr = addressData[0];
           const address = addr?.name || addr?.street || addr?.district || 'Current Location';
           const city = addr?.city || addr?.subregion || addr?.region || 'Unknown City';
           const subAddress = addr?.street || addr?.district || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-          
+
           setSelectedLocation({
             latitude,
             longitude,
@@ -253,14 +290,17 @@ export default function ChooseLocationScreen({ navigation }) {
           isServiceable: true,
         });
       }
-      
+
       setTimeout(() => {
-        mapRef.current?.animateToRegion({
-          latitude,
-          longitude,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }, 500);
+        mapRef.current?.animateToRegion(
+          {
+            latitude,
+            longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          },
+          500
+        );
       }, 1000);
     };
 
@@ -268,11 +308,11 @@ export default function ChooseLocationScreen({ navigation }) {
   }, []);
 
   const processLocationFromCoords = async (coords) => {
+    console.log('Processing coordinates:', coords);
     const { latitude, longitude } = coords;
-    
+
     try {
       const addressData = await Location.reverseGeocodeAsync({ latitude, longitude });
-      
       const addr = addressData[0];
       const address = addr?.name || addr?.street || addr?.district || 'Current Location';
       const city = addr?.city || addr?.subregion || addr?.region || 'Unknown';
@@ -287,18 +327,21 @@ export default function ChooseLocationScreen({ navigation }) {
         isServiceable: true,
       });
 
-      mapRef.current?.animateToRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.02,
-        longitudeDelta: 0.02,
-      }, 500);
+      mapRef.current?.animateToRegion(
+        {
+          latitude,
+          longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        },
+        500
+      );
     } catch (error) {
       console.error('Process location coords error:', error);
       setSelectedLocation({
         latitude,
         longitude,
-        address: 'Current Location',
+        address: 'Selected Location',
         city: 'Unknown',
         subAddress: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
         isServiceable: true,
@@ -307,16 +350,18 @@ export default function ChooseLocationScreen({ navigation }) {
   };
 
   const handleMapPress = async (event) => {
+    console.log('Map pressed:', event.nativeEvent.coordinate);
     try {
       const { coordinate } = event.nativeEvent;
       const addressData = await Location.reverseGeocodeAsync({
         latitude: coordinate.latitude,
         longitude: coordinate.longitude,
       });
-      
+
       const address = addressData[0]?.name || addressData[0]?.street || 'Selected Location';
       const city = addressData[0]?.city || addressData[0]?.subregion || 'Unknown';
-      const subAddress = addressData[0]?.street || `Lat: ${coordinate.latitude.toFixed(4)}, Lon: ${coordinate.longitude.toFixed(4)}`;
+      const subAddress =
+        addressData[0]?.street || `Lat: ${coordinate.latitude.toFixed(4)}, Lon: ${coordinate.longitude.toFixed(4)}`;
 
       Alert.alert(
         'Confirm Location',
@@ -334,12 +379,15 @@ export default function ChooseLocationScreen({ navigation }) {
                 subAddress,
                 isServiceable: true,
               });
-              mapRef.current?.animateToRegion({
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-                latitudeDelta: 0.02,
-                longitudeDelta: 0.02,
-              }, 300);
+              mapRef.current?.animateToRegion(
+                {
+                  latitude: coordinate.latitude,
+                  longitude: coordinate.longitude,
+                  latitudeDelta: 0.02,
+                  longitudeDelta: 0.02,
+                },
+                300
+              );
             },
           },
         ]
@@ -355,53 +403,21 @@ export default function ChooseLocationScreen({ navigation }) {
       Alert.alert('Search Error', 'Please enter a location to search');
       return;
     }
-    
+
+    console.log('Searching for:', searchQuery);
     try {
       setIsSearching(true);
       const results = await Location.geocodeAsync(searchQuery);
-      
+
       if (results.length > 0) {
         const { latitude, longitude } = results[0];
-        
-        try {
-          const addressData = await Location.reverseGeocodeAsync({ latitude, longitude });
-          const address = addressData[0]?.name || addressData[0]?.street || searchQuery;
-          const city = addressData[0]?.city || addressData[0]?.subregion || 'Unknown';
-          const subAddress = addressData[0]?.street || `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
-
-          setSelectedLocation({
-            latitude,
-            longitude,
-            address,
-            city,
-            subAddress,
-            isServiceable: true,
-          });
-          
-          mapRef.current?.animateToRegion({
-            latitude,
-            longitude,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }, 500);
-          
-          setSearchQuery(''); 
-        } catch (reverseGeocodeError) {
-          console.error('Reverse geocode error during search:', reverseGeocodeError);
-          setSelectedLocation({
-            latitude,
-            longitude,
-            address: searchQuery,
-            city: 'Unknown',
-            subAddress: `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`,
-            isServiceable: true,
-          });
-        }
+        await processLocationFromCoords({ latitude, longitude });
+        setSearchQuery('');
       } else {
         Alert.alert('No Results', 'No location found for the entered address. Please try a different search term.');
       }
     } catch (error) {
-      console.error('Search Error:', error);
+      console.error('Search error:', error);
       Alert.alert('Search Error', 'Failed to search location. Please check your internet connection and try again.');
     } finally {
       setIsSearching(false);
@@ -409,101 +425,116 @@ export default function ChooseLocationScreen({ navigation }) {
   };
 
   const handleDragEnd = async (event) => {
+    console.log('Marker drag end:', event.nativeEvent.coordinate);
     try {
       const { latitude, longitude } = event.nativeEvent.coordinate;
-      
-      const addressData = await Location.reverseGeocodeAsync({ latitude, longitude });
-      const address = addressData[0]?.name || addressData[0]?.street || 'Selected Location';
-      const city = addressData[0]?.city || addressData[0]?.subregion || 'Unknown';
-      const subAddress = addressData[0]?.street || `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`;
-
-      setSelectedLocation({
-        latitude,
-        longitude,
-        address,
-        city,
-        subAddress,
-        isServiceable: true, 
-      });
+      await processLocationFromCoords({ latitude, longitude });
     } catch (error) {
       console.error('Drag end error:', error);
-      const { latitude, longitude } = event.nativeEvent.coordinate;
-      setSelectedLocation({
-        latitude,
-        longitude,
-        address: 'Selected Location',
-        city: 'Unknown',
-        subAddress: `Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)}`,
-        isServiceable: true,
-      });
+      Alert.alert('Error', 'Failed to get location details');
     }
   };
 
   const handleCurrentLocation = async () => {
+    console.log('Fetching current location');
     try {
       const { status } = await Location.getForegroundPermissionsAsync();
-      
       if (status !== 'granted') {
         Alert.alert(
           'Permission Required',
-          'Location permission is required to use this feature. Please enable it in settings.',
+          'Location permission is required. Please enable it in settings or skip to proceed.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
+          ]
+        );
+        return;
+      }
+
+      const isLocationEnabled = await Location.hasServicesEnabledAsync();
+      if (!isLocationEnabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services in your device settings or skip to proceed.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
           ]
         );
         return;
       }
 
       setIsGettingCurrentLocation(true);
-
-      const locationOptions = {
+      const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
         timeout: 10000,
         maximumAge: 5000,
-      };
-
-      try {
-        const location = await Location.getCurrentPositionAsync(locationOptions);
-        await processLocationFromCoords(location.coords);
-      } catch (locationError) {
-        console.error('Current location fetch failed:', locationError);
-        
-        try {
-          const lastLocation = await Location.getLastKnownPositionAsync({
-            maxAge: 300000, // 5 minutes
-            requiredAccuracy: 1000,
-          });
-          
-          if (lastLocation) {
-            await processLocationFromCoords(lastLocation.coords);
-            Alert.alert(
-              'Location Notice',
-              'Using your last known location as current location could not be determined.',
-              [{ text: 'OK' }]
-            );
-          } else {
-            throw new Error('No location available');
-          }
-        } catch (fallbackError) {
-          throw fallbackError;
-        }
-      }
+      });
+      await processLocationFromCoords(location.coords);
     } catch (error) {
       console.error('Handle current location error:', error);
-      Alert.alert(
-        'Location Error',
-        'Unable to get your current location. Please ensure location services are enabled and try again.',
-        [{ text: 'OK' }]
-      );
+      try {
+        const lastLocation = await Location.getLastKnownPositionAsync({
+          maxAge: 300000,
+          requiredAccuracy: 1000,
+        });
+        if (lastLocation) {
+          await processLocationFromCoords(lastLocation.coords);
+          Alert.alert(
+            'Location Notice',
+            'Using your last known location as current location could not be determined. You can skip to proceed.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Skip',
+                onPress: handleSkip,
+              },
+            ]
+          );
+        } else {
+          throw new Error('No last known position available');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback location error:', fallbackError);
+        Alert.alert(
+          'Location Unavailable',
+          'Unable to get your current location. Using default location (Bangalore). You can skip to proceed.',
+          [
+            { text: 'OK' },
+            {
+              text: 'Skip',
+              onPress: handleSkip,
+            },
+          ]
+        );
+      }
     } finally {
       setIsGettingCurrentLocation(false);
     }
   };
 
   const handleNext = () => {
-    if (selectedLocation?.isServiceable) {
-      setLocation({ 
+    if (!selectedLocation) {
+      // If no location is selected, use default location
+      setLocation({
+        latitude: DEFAULT_REGION.latitude,
+        longitude: DEFAULT_REGION.longitude,
+        address: 'Default Location (Bangalore)',
+        city: 'Bangalore',
+      });
+      completeStep(1);
+      navigation.navigate('Preference');
+    } else if (selectedLocation.isServiceable) {
+      console.log('Proceeding to next step with location:', selectedLocation);
+      setLocation({
         latitude: selectedLocation.latitude,
         longitude: selectedLocation.longitude,
         address: selectedLocation.address,
@@ -512,11 +543,22 @@ export default function ChooseLocationScreen({ navigation }) {
       completeStep(1);
       navigation.navigate('Preference');
     } else {
-      Alert.alert('Error', 'Please select a serviceable location');
+      Alert.alert('Error', 'Please select a serviceable location or skip to proceed.');
     }
   };
 
-  // Loading state
+  const handleSkip = () => {
+    console.log('Skipping location selection');
+    setLocation({
+      latitude: DEFAULT_REGION.latitude,
+      longitude: DEFAULT_REGION.longitude,
+      address: 'Default Location (Bangalore)',
+      city: 'Bangalore',
+    });
+    completeStep(1);
+    navigation.navigate('Preference');
+  };
+
   if (isLoading) {
     return (
       <View style={styles.root}>
@@ -529,6 +571,9 @@ export default function ChooseLocationScreen({ navigation }) {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#563314" />
           <Text style={styles.loadingText}>Getting your location...</Text>
+          {/* <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+            <Text style={styles.skipBtnText}>Skip</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
     );
@@ -546,21 +591,16 @@ export default function ChooseLocationScreen({ navigation }) {
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="map-marker-off" size={64} color="#ccc" />
           <Text style={styles.errorText}>
-            Location access is required to use this feature. Please enable it in settings to continue.
+            Location access is required to use this feature. Please enable it in settings or skip to proceed.
           </Text>
-          <TouchableOpacity
-            style={styles.settingsBtn}
-            onPress={() => Linking.openSettings()}
-          >
+          <TouchableOpacity style={styles.settingsBtn} onPress={() => Linking.openSettings()}>
             <Text style={styles.settingsBtnText}>Open Settings</Text>
           </TouchableOpacity>
-          
           <Text style={styles.orText}>or</Text>
-          
           <TouchableOpacity
             style={[styles.settingsBtn, { backgroundColor: '#28a745' }]}
             onPress={() => {
-              // Set default location as fallback
+              console.log('Using default location');
               setSelectedLocation({
                 latitude: DEFAULT_REGION.latitude,
                 longitude: DEFAULT_REGION.longitude,
@@ -570,10 +610,15 @@ export default function ChooseLocationScreen({ navigation }) {
                 isServiceable: true,
               });
               setLocationPermission(true);
+              mapRef.current?.animateToRegion(DEFAULT_REGION, 500);
             }}
           >
             <Text style={styles.settingsBtnText}>Use Default Location</Text>
           </TouchableOpacity>
+          {/* <Text style={styles.orText}>or</Text> */}
+          {/* <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+            <Text style={styles.skipBtnText}>Skip</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
     );
@@ -591,6 +636,9 @@ export default function ChooseLocationScreen({ navigation }) {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#563314" />
           <Text style={styles.loadingText}>Loading location...</Text>
+          {/* <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+            <Text style={styles.skipBtnText}>Skip</Text>
+          </TouchableOpacity> */}
         </View>
       </View>
     );
@@ -630,7 +678,7 @@ export default function ChooseLocationScreen({ navigation }) {
 
       <MapView
         ref={mapRef}
-        style={styles.map}
+        style={styles.mapStyle}
         initialRegion={{
           latitude: selectedLocation.latitude,
           longitude: selectedLocation.longitude,
@@ -675,7 +723,7 @@ export default function ChooseLocationScreen({ navigation }) {
         </Marker>
       </MapView>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.currentLocationBtn}
         onPress={handleCurrentLocation}
         disabled={isGettingCurrentLocation}
@@ -698,7 +746,9 @@ export default function ChooseLocationScreen({ navigation }) {
           />
           <View style={{ flex: 1, paddingHorizontal: 12 }}>
             <Text style={styles.addrTitle}>{selectedLocation.address}</Text>
-            <Text style={styles.addrSub}>{selectedLocation.city}, {selectedLocation.subAddress}</Text>
+            <Text style={styles.addrSub}>
+              {selectedLocation.city}, {selectedLocation.subAddress}
+            </Text>
           </View>
           {!selectedLocation.isServiceable && (
             <>
@@ -706,45 +756,49 @@ export default function ChooseLocationScreen({ navigation }) {
                 name="cancel"
                 size={16}
                 color="red"
-                style={{ marginHorizontal: 4 }}
+                style={{ marginHorizontal: 8 }}
               />
               <Text style={styles.unservTxt}>Not Available</Text>
             </>
           )}
         </View>
 
-        <TouchableOpacity
-          disabled={!selectedLocation?.isServiceable}
-          style={[
-            styles.nextBtn,
-            !selectedLocation?.isServiceable && styles.nextBtnDisabled,
-          ]}
-          onPress={handleNext}
-        >
-          <Text style={[
-            styles.nextBtnTxt,
-            !selectedLocation?.isServiceable && styles.nextBtnTxtDisabled
-          ]}>
-            Next
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            disabled={!selectedLocation?.isServiceable}
+            style={[
+              styles.nextBtn,
+              !selectedLocation?.isServiceable && styles.nextBtnDisabled,
+            ]}
+            onPress={handleNext}
+          >
+            <Text
+              style={[
+                styles.nextBtnTxt,
+                !selectedLocation?.isServiceable && styles.nextBtnTxtDisabled,
+              ]}
+            >
+              Next
+            </Text>
+          </TouchableOpacity>
+          {/* <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
+            <Text style={styles.skipBtnText}>Skip</Text>
+          </TouchableOpacity> */}
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { 
-    flex: 1, 
-    backgroundColor: '#fff' 
-  },
+  root: { flex: 1, backgroundColor: '#fff' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#563314',
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingBottom: 12,
+    paddingBottom: 10,
     elevation: 4,
     shadowColor: '#000',
     shadowOpacity: 0.1,
@@ -769,9 +823,9 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 1 },
   },
-  searchLabel: { 
-    fontSize: 12, 
-    color: '#777', 
+  searchLabelStyle: {
+    fontSize: 12,
+    color: '#777',
     marginBottom: 6,
     fontWeight: '500',
     letterSpacing: 0.5,
@@ -786,15 +840,13 @@ const styles = StyleSheet.create({
     height: 44,
     backgroundColor: '#fafafa',
   },
-  input: { 
-    flex: 1, 
-    fontSize: 15, 
+  input: {
+    flex: 1,
+    fontSize: 15,
     color: '#333',
     paddingVertical: 0,
   },
-  map: { 
-    flex: 1 
-  },
+  mapStyle: { flex: 1 },
   markerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -833,7 +885,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
   },
-  calloutTxt: {
+  calloutTxtAddr: {
     fontSize: 12,
     color: '#333',
     flexShrink: 1,
@@ -853,9 +905,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
   },
-  bottomHeader: { 
-    fontSize: 12, 
-    color: '#777', 
+  bottomHeader: {
+    fontSize: 12,
+    color: '#777',
     marginBottom: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
@@ -870,33 +922,66 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     backgroundColor: '#fafafa',
   },
-  addrTitle: { 
-    fontWeight: '700', 
-    fontSize: 15, 
+  addrTitle: {
+    fontWeight: '700',
+    fontSize: 15,
     color: '#333',
     marginBottom: 2,
   },
-  addrSub: { 
-    fontSize: 13, 
+  addrSub: {
+    fontSize: 13,
     color: '#666',
     lineHeight: 18,
   },
-  unservTxt: { 
-    fontSize: 12, 
+  unservTxt: {
+    fontSize: 12,
     color: '#dc3545',
     fontWeight: '600',
   },
   nextBtn: {
-    height: 46,
+    height: 48,
     borderRadius: 8,
     backgroundColor: '#563314',
     justifyContent: 'center',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
   },
   nextBtnDisabled: {
     backgroundColor: '#eee',
   },
-  nextBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  nextBtnTxt: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  nextBtnTxtDisabled: {
+    color: '#999',
+  },
+  skipBtn: {
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#28a745',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#1e7e34',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  skipBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -907,12 +992,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 24,
   },
   errorText: {
     fontSize: 16,
     color: '#d32f2f',
     textAlign: 'center',
-    marginBottom: 20,
+    marginVertical: 16,
+    marginBottom: 24,
   },
   settingsBtn: {
     backgroundColor: '#563314',
@@ -920,10 +1008,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: 'center',
+    marginBottom: 12,
+    width: '80%',
   },
   settingsBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  orText: {
+    fontSize: 14,
+    color: '#666',
+    marginVertical: 8,
   },
 });
